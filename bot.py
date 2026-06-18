@@ -1,3 +1,5 @@
+import requests
+
 def get_price(symbol):
     symbol = symbol.lower().strip()
 
@@ -22,9 +24,10 @@ def get_price(symbol):
                 timeout=5
             )
 
-            data = r.json()
-            if "price" in data:
-                return float(data["price"])
+            if r.status_code == 200:
+                data = r.json()
+                if "price" in data:
+                    return float(data["price"])
 
     except Exception as e:
         print("BINANCE FAIL:", e)
@@ -50,11 +53,9 @@ def get_price(symbol):
                 timeout=5
             )
 
-            data = r.json()
-
-            price = data.get(coin, {}).get("usd")
-            if price:
-                return price
+            if r.status_code == 200:
+                data = r.json()
+                return data.get(coin, {}).get("usd")
 
     except Exception as e:
         print("COINGECKO FAIL:", e)
@@ -67,11 +68,9 @@ def get_price(symbol):
             timeout=5
         )
 
-        data = r.json()
-
-        price = data.get("USD")
-        if price:
-            return price
+        if r.status_code == 200:
+            data = r.json()
+            return data.get("USD")
 
     except Exception as e:
         print("CRYPTOCOMPARE FAIL:", e)
