@@ -8,6 +8,9 @@ BASE_URL = f"https://api.telegram.org/bot{TOKEN}/"
 app = Flask(__name__)
 
 
+# =====================
+# SEND MESSAGE
+# =====================
 def send(chat_id, text):
     try:
         requests.get(
@@ -19,74 +22,143 @@ def send(chat_id, text):
         print("SEND ERROR:", e)
 
 
+# =====================
+# PRICE ENGINE (BINANCE + CRYPTOCOMPARE)
+# =====================
 def get_price(symbol):
-    mapping = {
-        "btc": "bitcoin",
-        "eth": "ethereum",
-        "sol": "solana",
-        "bnb": "binancecoin",
-        "xrp": "ripple"
+    symbol = symbol.lower().strip()
+
+    # ---------------- BINANCE MAP ----------------
+    binance_map = {
+        "btc": "BTCUSDT",
+        "eth": "ETHUSDT",
+        "sol": "SOLUSDT",
+        "bnb": "BNBUSDT",
+        "xrp": "XRPUSDT",
+        "ada": "ADAUSDT",
+        "doge": "DOGEUSDT",
+        "ltc": "LTCUSDT",
+        "dot": "DOTUSDT"
     }
 
-    coin = mapping.get(symbol.lower())
-    if not coin:
-        return None
+    pair = binance_map.get(symbol)
 
+    # ========== 1. TRY BINANCE ==========
+    if pair:
+        try:
+            r = requests.get(
+                "https://api.binance.com/api/v3/ticker/price",
+                params={"symbol": pair},
+                timeout=8
+            )
+            data = r.json()
+            if "price" in data:
+                return float(data["price"])
+        except Exception as e:
+            print("BINANCE ERROR:", e)
+
+    # ========== 2. CRYPTOCOMPARE FALLBACK ==========
     try:
         r = requests.get(
-            "https://api.coingecko.com/api/v3/simple/price",
-            params={"ids": coin, "vs_currencies": "usd"},
-            timeout=10
+            "https://min-api.cryptocompare.com/data/price",
+            params={"fsym": symbol.upper(), "tsyms": "USD"},
+            timeout=8
         )
 
         data = r.json()
-        return data.get(coin, {}).get("usd")
+        print("CRYPTOCOMPARE:", data)
 
-    except:
-        return None
+        if "USD" in data:
+            return data["USD"]
+
+    except Exception as e:
+        print("CRYPTOCOMPARE ERROR:", e)
+
+    return None
 
 
+# =====================
+# HOME ROUTE
+# =====================
 @app.route("/")
 def home():
-    return "Bot is running!"
+    return "🚀 Maveconnect Bot is running!"
 
 
+# =====================
+# WEBHOOK
+# =====================
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    data = request.get_json()
+    try:
+        data = request.get_json()
 
-    if not data:
-        return "ok"
+        if not data:
+            return "ok"
 
-    message = data.get("message")
-    if not message:
-        return "ok"
+        message = data.get("message")
+        if not message:
+            return "ok"
 
-    chat_id = message["chat"]["id"]
-    text = message.get("text", "").strip()
+        chat_id = message["chat"]["id"]
+        text = message.get("text", "").strip()
 
-    if text == "/start":
-        send(chat_id, "🚀 Bot is live!")
+        print("MESSAGE:", text)
 
-    elif text.startswith("/btc"):
-        parts = text.split()
+        # -------- START --------
+        if text == "/start":
+            send(chat_id,
+                "🚀 Maveconnect Crypto Bot\n\n"
+                "Commands:\n"
+                "/token btc\n"
+                "/token eth\n"
+                "/token sol"
+            )
 
-        if len(parts) < 2:
-            send(chat_id, "Usage: /btc BTC")
-        else:
-            price = get_price(parts[1])
+        # -------- HELP --------
+        elif text == "/help":
+            send(chat_id,
+                "📊 Commands:\n"
+                "/token btc\n"
+                "/token eth\n"
+                "/token sol\n"
+                "/token doge"
+            )
 
-            if price:
-                send(chat_id, f"💰 Price: ${price}")
+        # -------- TOKEN PRICE --------
+        elif text.lower().startswith("/token"):
+            parts = text.split()
+
+            if len(parts) < 2:
+                send(chat_id, "Usage: /token btc")
+                return "ok"
+
+            symbol = parts[1]
+            price = get_price(symbol)
+
+            if price is not None:
+                send(chat_id,
+                    f"🪙 {symbol.upper()}\n"
+                    f"💰 Price: ${price}"
+                )
             else:
-                send(chat_id, "Price unavailable")
+                send(chat_id,
+                    "⚠️ Price unavailable. Try again in a moment."
+                )
 
-    else:
-        send(chat_id, "Use /btc BTC")
+        # -------- DEFAULT --------
+        else:
+            send(chat_id, "Use /help to see commands.")
+
+    except Exception as e:
+        print("WEBHOOK ERROR:", e)
 
     return "ok"
 
 
+# =====================
+# RUN APP (RENDER)
+# =====================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
