@@ -1,7 +1,8 @@
-from flask import Flask, request, jsonify
+import telebot
 import requests
 
-app = Flask(__name__)
+TOKEN = "7988782705:AAFS9c5D_v-o15b5hBJZmNXW4aol4BgtUf4"
+bot = telebot.TeleBot(TOKEN)
 
 def get_price(symbol):
     symbol = symbol.lower().strip()
@@ -16,35 +17,32 @@ def get_price(symbol):
         "doge": "DOGEUSDT"
     }
 
-    try:
-        pair = binance_map.get(symbol)
+    pair = binance_map.get(symbol)
 
-        if pair:
-            r = requests.get(
-                "https://api.binance.com/api/v3/ticker/price",
-                params={"symbol": pair},
-                timeout=5
-            )
-
-            if r.status_code == 200:
-                data = r.json()
-                if "price" in data:
-                    return float(data["price"])
-    except:
-        pass
+    if pair:
+        r = requests.get(
+            "https://api.binance.com/api/v3/ticker/price",
+            params={"symbol": pair},
+            timeout=5
+        )
+        if r.status_code == 200:
+            return r.json().get("price")
 
     return None
 
 
-@app.route("/price")
-def price():
-    symbol = request.args.get("symbol")
-    result = get_price(symbol)
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.reply_to(message, "Send a coin like btc, eth, sol")
 
-    if result:
-        return jsonify({"symbol": symbol, "price": result})
-    return jsonify({"error": "not found"}), 404
+@bot.message_handler(func=lambda m: True)
+def handle(message):
+    price = get_price(message.text)
 
+    if price:
+        bot.reply_to(message, f"{message.text.upper()} = ${price}")
+    else:
+        bot.reply_to(message, "Coin not found")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+print("Bot running...")
+bot.infinity_polling()
