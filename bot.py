@@ -10,17 +10,10 @@ from flask import Flask
 TOKEN = os.getenv("BOT_TOKEN", "7988782705:AAFS9c5D_v-o15b5hBJZmNXW4aol4BgtUf4")
 bot = telebot.TeleBot(TOKEN)
 
-# ================= FORCE JOIN CHANNEL =================
+# ================= CHANNEL =================
 CHANNEL = "@UltimateAvian"
 
-def is_member(user_id):
-    try:
-        status = bot.get_chat_member(CHANNEL, user_id)
-        return status.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
-# ================= WEB SERVER (RENDER KEEP ALIVE) =================
+# ================= WEB SERVER =================
 app = Flask(__name__)
 
 @app.route("/")
@@ -31,7 +24,16 @@ def run_web():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# ================= NAME MAPPING =================
+# ================= SAFE MEMBERSHIP CHECK =================
+def is_member(user_id):
+    try:
+        status = bot.get_chat_member(CHANNEL, user_id)
+        return status.status in ["member", "administrator", "creator"]
+    except:
+        # fallback: don't crash bot if Telegram limits check
+        return False
+
+# ================= NAME MAP =================
 name_map = {
     "bitcoin": "btc",
     "btc": "btc",
@@ -75,10 +77,9 @@ def get_price(symbol):
             )
 
             if r.status_code == 200:
-                data = r.json()
-                return float(data["price"])
+                return float(r.json()["price"])
 
-    except Exception:
+    except:
         print(traceback.format_exc())
 
     return None
@@ -91,25 +92,22 @@ def start(message):
     if not is_member(user_id):
         bot.reply_to(
             message,
-            f"🚀 To use this bot, you must join our channel: {CHANNEL}"
+            f"🚀 Join our community first:\n{CHANNEL}\n\nThen come back and use the bot."
         )
         return
 
     bot.reply_to(
         message,
-        "👋 Welcome!\n\nSend BTC, ETH, SOL\nor use /price btc"
+        "👋 Welcome to Maveconnect Bot!\n\nSend BTC, ETH, SOL\nor use /price btc"
     )
 
-# ================= /PRICE COMMAND =================
+# ================= PRICE COMMAND =================
 @bot.message_handler(commands=['price'])
 def price_cmd(message):
     user_id = message.from_user.id
 
     if not is_member(user_id):
-        bot.reply_to(
-            message,
-            f"🚀 Join our channel first: {CHANNEL}"
-        )
+        bot.reply_to(message, f"🚀 Join first: {CHANNEL}")
         return
 
     try:
@@ -127,11 +125,10 @@ def price_cmd(message):
         else:
             bot.reply_to(message, "❌ Coin not found.")
 
-    except Exception:
+    except:
         print(traceback.format_exc())
-        bot.reply_to(message, "⚠️ Error processing request")
 
-# ================= NORMAL MESSAGE =================
+# ================= MESSAGE HANDLER =================
 @bot.message_handler(func=lambda m: True)
 def handle_message(message):
     user_id = message.from_user.id
@@ -139,7 +136,7 @@ def handle_message(message):
     if not is_member(user_id):
         bot.reply_to(
             message,
-            f"🚀 To use this bot, you must join our channel: {CHANNEL}"
+            f"🚀 Please join first:\n{CHANNEL}"
         )
         return
 
@@ -155,9 +152,8 @@ def handle_message(message):
                 "❌ Coin not found. Try BTC, ETH, SOL, BNB, XRP, ADA, DOGE"
             )
 
-    except Exception:
+    except:
         print(traceback.format_exc())
-        bot.reply_to(message, "⚠️ Error processing request")
 
 # ================= BOT LOOP =================
 def run_bot():
@@ -174,8 +170,8 @@ def run_bot():
                 skip_pending=True
             )
 
-        except Exception:
-            print("Bot crashed, restarting...")
+        except:
+            print("Restarting bot...")
             print(traceback.format_exc())
             time.sleep(5)
 
