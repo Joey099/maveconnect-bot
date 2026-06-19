@@ -1,4 +1,5 @@
 import os
+import asyncio
 import requests
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -17,21 +18,19 @@ CHANNEL = "@UltimateAvian"
 
 
 # =========================
-# COIN API (SAFE)
+# COIN API
 # =========================
 def get_price(coin: str):
     try:
         url = "https://api.coingecko.com/api/v3/simple/price"
-        params = {"ids": coin.lower(), "vs_currencies": "usd"}
-
-        r = requests.get(url, params=params, timeout=10)
+        r = requests.get(url, params={"ids": coin.lower(), "vs_currencies": "usd"}, timeout=10)
         return r.json().get(coin.lower(), {}).get("usd")
     except:
         return None
 
 
 # =========================
-# JOIN CHECK (SAFE)
+# JOIN CHECK
 # =========================
 async def is_joined(context: ContextTypes.DEFAULT_TYPE, user_id: int):
     try:
@@ -57,19 +56,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    await update.message.reply_text(
-        "🔥 Crypto Bot Ready\nUse /price bitcoin",
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("BTC", callback_data="bitcoin"),
-                InlineKeyboardButton("ETH", callback_data="ethereum"),
-            ]
-        ])
-    )
+    await update.message.reply_text("🔥 Bot running on Python 3.14")
 
 
 # =========================
-# PRICE COMMAND
+# PRICE
 # =========================
 async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -82,11 +73,11 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if price:
         await update.message.reply_text(f"💰 {coin.upper()} = ${price}")
     else:
-        await update.message.reply_text("❌ Coin not found")
+        await update.message.reply_text("❌ Not found")
 
 
 # =========================
-# CALLBACK BUTTONS
+# BUTTON
 # =========================
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -98,22 +89,36 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if price:
         await query.edit_message_text(f"💰 {coin.upper()} = ${price}")
     else:
-        await query.edit_message_text("❌ Error fetching price")
+        await query.edit_message_text("❌ Error")
 
 
 # =========================
-# MAIN (3.14 SAFE MODE)
+# BUILD APP
 # =========================
-def main():
+def build_app():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("price", price))
     app.add_handler(CallbackQueryHandler(button))
 
-    print("🚀 Running on Python 3.14 safe mode")
-    app.run_polling(drop_pending_updates=True)
+    return app
+
+
+# =========================
+# PYTHON 3.14 FIX LOOP RUNNER
+# =========================
+async def run():
+    app = build_app()
+
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+
+    print("🚀 Bot running on Python 3.14 (fixed loop mode)")
+
+    await asyncio.Event().wait()  # keep alive
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(run())
