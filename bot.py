@@ -17,59 +17,21 @@ CHANNEL = "@UltimateAvian"
 
 
 # =========================
-# SAFE COIN API
+# COIN API (SAFE)
 # =========================
 def get_price(coin: str):
     try:
-        coin = coin.lower().strip()
-
         url = "https://api.coingecko.com/api/v3/simple/price"
-        params = {"ids": coin, "vs_currencies": "usd"}
+        params = {"ids": coin.lower(), "vs_currencies": "usd"}
 
         r = requests.get(url, params=params, timeout=10)
-        data = r.json()
-
-        return data.get(coin, {}).get("usd")
+        return r.json().get(coin.lower(), {}).get("usd")
     except:
         return None
 
 
-def get_top():
-    try:
-        url = "https://api.coingecko.com/api/v3/coins/markets"
-        params = {
-            "vs_currency": "usd",
-            "order": "market_cap_desc",
-            "per_page": 5,
-            "page": 1,
-            "sparkline": False
-        }
-
-        r = requests.get(url, params=params, timeout=10)
-        return r.json()
-    except:
-        return []
-
-
-def get_gainers():
-    try:
-        url = "https://api.coingecko.com/api/v3/coins/markets"
-        params = {
-            "vs_currency": "usd",
-            "order": "price_change_percentage_24h_desc",
-            "per_page": 5,
-            "page": 1,
-            "sparkline": False
-        }
-
-        r = requests.get(url, params=params, timeout=10)
-        return r.json()
-    except:
-        return []
-
-
 # =========================
-# JOIN CHECK (FIXED)
+# JOIN CHECK (SAFE)
 # =========================
 async def is_joined(context: ContextTypes.DEFAULT_TYPE, user_id: int):
     try:
@@ -87,21 +49,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not await is_joined(context, user_id):
         await update.message.reply_text(
-            "🚀 Join our channel to use this bot:",
+            "🚀 Join channel first:",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Join", url="https://t.me/UltimateAvian")],
-                [InlineKeyboardButton("✅ I Joined", callback_data="check")]
+                [InlineKeyboardButton("Join", url="https://t.me/UltimateAvian")],
+                [InlineKeyboardButton("I Joined", callback_data="check")]
             ])
         )
         return
 
     await update.message.reply_text(
-        "🔥 Crypto Bot Active\n\nCommands:\n/price bitcoin\n/top\n/gainers",
+        "🔥 Crypto Bot Ready\nUse /price bitcoin",
         reply_markup=InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("BTC", callback_data="bitcoin"),
                 InlineKeyboardButton("ETH", callback_data="ethereum"),
-                InlineKeyboardButton("SOL", callback_data="solana"),
             ]
         ])
     )
@@ -115,7 +76,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Usage: /price bitcoin")
         return
 
-    coin = context.args[0].lower()
+    coin = context.args[0]
     price = get_price(coin)
 
     if price:
@@ -125,33 +86,7 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# TOP
-# =========================
-async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    coins = get_top()
-
-    text = "🔥 TOP 5 COINS:\n\n"
-    for c in coins:
-        text += f"{c['symbol'].upper()} = ${c['current_price']}\n"
-
-    await update.message.reply_text(text)
-
-
-# =========================
-# GAINERS
-# =========================
-async def gainers(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    coins = get_gainers()
-
-    text = "🚀 TOP GAINERS:\n\n"
-    for c in coins:
-        text += f"{c['symbol'].upper()} +{c['price_change_percentage_24h']:.2f}%\n"
-
-    await update.message.reply_text(text)
-
-
-# =========================
-# BUTTONS
+# CALLBACK BUTTONS
 # =========================
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -167,19 +102,17 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# MAIN (CLEAN FOR RENDER)
+# MAIN (3.14 SAFE MODE)
 # =========================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("price", price))
-    app.add_handler(CommandHandler("top", top))
-    app.add_handler(CommandHandler("gainers", gainers))
     app.add_handler(CallbackQueryHandler(button))
 
-    print("🚀 Bot running on Python 3.11.9")
-    app.run_polling()
+    print("🚀 Running on Python 3.14 safe mode")
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
