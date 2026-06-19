@@ -10,6 +10,16 @@ from flask import Flask
 TOKEN = os.getenv("BOT_TOKEN", "7988782705:AAFS9c5D_v-o15b5hBJZmNXW4aol4BgtUf4")
 bot = telebot.TeleBot(TOKEN)
 
+# ================= FORCE JOIN CHANNEL =================
+CHANNEL = "@UltimateAvian"
+
+def is_member(user_id):
+    try:
+        status = bot.get_chat_member(CHANNEL, user_id)
+        return status.status in ["member", "administrator", "creator"]
+    except:
+        return False
+
 # ================= WEB SERVER (RENDER KEEP ALIVE) =================
 app = Flask(__name__)
 
@@ -21,7 +31,7 @@ def run_web():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
-# ================= NAME MAPPING (UPGRADE) =================
+# ================= NAME MAPPING =================
 name_map = {
     "bitcoin": "btc",
     "btc": "btc",
@@ -42,7 +52,6 @@ name_map = {
 # ================= PRICE FUNCTION =================
 def get_price(symbol):
     symbol = symbol.lower().strip()
-
     symbol = name_map.get(symbol, symbol)
 
     binance_map = {
@@ -74,17 +83,35 @@ def get_price(symbol):
 
     return None
 
-# ================= /START =================
+# ================= START =================
 @bot.message_handler(commands=['start'])
 def start(message):
+    user_id = message.from_user.id
+
+    if not is_member(user_id):
+        bot.reply_to(
+            message,
+            f"🚀 To use this bot, you must join our channel: {CHANNEL}"
+        )
+        return
+
     bot.reply_to(
         message,
-        "👋 Welcome!\n\nSend:\nBTC / ETH / SOL\nor use:\n/price btc"
+        "👋 Welcome!\n\nSend BTC, ETH, SOL\nor use /price btc"
     )
 
-# ================= /PRICE COMMAND (UPGRADE) =================
+# ================= /PRICE COMMAND =================
 @bot.message_handler(commands=['price'])
 def price_cmd(message):
+    user_id = message.from_user.id
+
+    if not is_member(user_id):
+        bot.reply_to(
+            message,
+            f"🚀 Join our channel first: {CHANNEL}"
+        )
+        return
+
     try:
         parts = message.text.split()
 
@@ -107,9 +134,17 @@ def price_cmd(message):
 # ================= NORMAL MESSAGE =================
 @bot.message_handler(func=lambda m: True)
 def handle_message(message):
+    user_id = message.from_user.id
+
+    if not is_member(user_id):
+        bot.reply_to(
+            message,
+            f"🚀 To use this bot, you must join our channel: {CHANNEL}"
+        )
+        return
+
     try:
         text = message.text.lower().strip().replace("/", "").split()[0]
-
         price = get_price(text)
 
         if price:
