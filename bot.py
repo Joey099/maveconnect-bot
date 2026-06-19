@@ -17,10 +17,12 @@ CHANNEL = "@UltimateAvian"
 
 
 # =========================
-# COIN FUNCTIONS
+# SAFE COIN API
 # =========================
 def get_price(coin: str):
     try:
+        coin = coin.lower().strip()
+
         url = "https://api.coingecko.com/api/v3/simple/price"
         params = {"ids": coin, "vs_currencies": "usd"}
 
@@ -32,7 +34,7 @@ def get_price(coin: str):
         return None
 
 
-def get_top_coins():
+def get_top():
     try:
         url = "https://api.coingecko.com/api/v3/coins/markets"
         params = {
@@ -67,7 +69,7 @@ def get_gainers():
 
 
 # =========================
-# JOIN CHECK
+# JOIN CHECK (FIXED)
 # =========================
 async def is_joined(context: ContextTypes.DEFAULT_TYPE, user_id: int):
     try:
@@ -78,25 +80,23 @@ async def is_joined(context: ContextTypes.DEFAULT_TYPE, user_id: int):
 
 
 # =========================
-# START COMMAND
+# START
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
     if not await is_joined(context, user_id):
-        keyboard = [
-            [InlineKeyboardButton("📢 Join Channel", url="https://t.me/UltimateAvian")],
-            [InlineKeyboardButton("✅ I Joined", callback_data="check_join")]
-        ]
-
         await update.message.reply_text(
             "🚀 Join our channel to use this bot:",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Join", url="https://t.me/UltimateAvian")],
+                [InlineKeyboardButton("✅ I Joined", callback_data="check")]
+            ])
         )
         return
 
     await update.message.reply_text(
-        "🔥 Crypto Bot Ready!\n\nCommands:\n/price bitcoin\n/top\n/gainers",
+        "🔥 Crypto Bot Active\n\nCommands:\n/price bitcoin\n/top\n/gainers",
         reply_markup=InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("BTC", callback_data="bitcoin"),
@@ -125,13 +125,12 @@ async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# TOP COINS
+# TOP
 # =========================
 async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    coins = get_top_coins()
+    coins = get_top()
 
-    text = "🔥 TOP COINS:\n\n"
-
+    text = "🔥 TOP 5 COINS:\n\n"
     for c in coins:
         text += f"{c['symbol'].upper()} = ${c['current_price']}\n"
 
@@ -144,8 +143,7 @@ async def top(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def gainers(update: Update, context: ContextTypes.DEFAULT_TYPE):
     coins = get_gainers()
 
-    text = "🚀 TOP GAINERS (24h):\n\n"
-
+    text = "🚀 TOP GAINERS:\n\n"
     for c in coins:
         text += f"{c['symbol'].upper()} +{c['price_change_percentage_24h']:.2f}%\n"
 
@@ -153,7 +151,7 @@ async def gainers(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# BUTTON CALLBACK
+# BUTTONS
 # =========================
 async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -169,7 +167,7 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# MAIN
+# MAIN (CLEAN FOR RENDER)
 # =========================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -178,10 +176,9 @@ def main():
     app.add_handler(CommandHandler("price", price))
     app.add_handler(CommandHandler("top", top))
     app.add_handler(CommandHandler("gainers", gainers))
-
     app.add_handler(CallbackQueryHandler(button))
 
-    print("🚀 Bot running...")
+    print("🚀 Bot running on Python 3.11.9")
     app.run_polling()
 
 
