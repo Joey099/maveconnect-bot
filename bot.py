@@ -93,5 +93,5 @@ def home():
 # ================= MAIN =================
 
 if __name__ == "__main__":
-    bot.set_webhook(url=f"https://maveconnect-bot-24-72nf.onrender.com/{TOKEN}")
+    bot.set_webhook(url=f"https://maveconnect-bot-24-w8tk.onrender.com/{TOKEN}")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
