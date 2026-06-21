@@ -21,7 +21,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Level 2 AI Trading Bot Running 🚀"
+    return "Level 3 AI Trading Bot Running 🚀"
 
 # ================= SAFETY =================
 
@@ -40,98 +40,106 @@ COINS = {
     "doge": "dogecoin",
     "matic": "matic-network",
     "dot": "polkadot",
-    "ltc": "litecoin"
+    "ltc": "litecoin",
+    "trx": "tron",
+    "avax": "avalanche-2",
+    "shib": "shiba-inu",
+    "link": "chainlink"
 }
 
-# ================= PRICE =================
+# ================= PRICE ENGINE (FIXED) =================
 
 def get_price(coin):
-    coin_id = COINS.get(coin.lower(), coin.lower())
+    coin = coin.lower().strip()
+
+    if coin not in COINS:
+        return None
+
+    coin_id = COINS[coin]
 
     url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd"
 
     try:
         r = requests.get(url, timeout=10)
         data = r.json()
-        return data[coin_id]["usd"]
+
+        return data.get(coin_id, {}).get("usd", None)
+
     except:
         return None
 
 
-# ================= RSI (SIMULATED REALISTIC) =================
+# ================= MARKET HISTORY SIMULATION =================
 
-def get_rsi_like(coin):
+def get_price_history(coin):
     prices = []
 
-    for _ in range(5):
+    for _ in range(6):
         p = get_price(coin)
         if p:
             prices.append(p)
-        time.sleep(0.5)
+        time.sleep(0.3)
 
-    if len(prices) < 3:
-        return 50
-
-    gains = 0
-    losses = 0
-
-    for i in range(1, len(prices)):
-        diff = prices[i] - prices[i - 1]
-        if diff > 0:
-            gains += diff
-        else:
-            losses += abs(diff)
-
-    if losses == 0:
-        return 100
-
-    rs = gains / losses
-    rsi = 100 - (100 / (1 + rs))
-
-    return rsi
+    return prices
 
 
-# ================= AI SIGNAL ENGINE =================
+# ================= LEVEL 3 AI ENGINE =================
 
 def ai_signal(coin):
-    price = get_price(coin)
-    rsi = get_rsi_like(coin)
+    prices = get_price_history(coin)
 
-    if not price:
+    if len(prices) < 4:
         return "❌ No data", 0
 
-    strength = 50
+    # trend calculation
+    start = prices[0]
+    end = prices[-1]
 
-    # RSI logic
-    if rsi > 70:
-        signal = "🔴 SELL"
-        strength += 30
-    elif rsi < 30:
-        signal = "🟢 BUY"
-        strength += 30
+    change = ((end - start) / start) * 100
+
+    volatility = max(prices) - min(prices)
+
+    score = 50
+
+    # TREND LOGIC
+    if change > 2:
+        score += 25
+        signal = "🟢 STRONG BUY"
+    elif change > 0.5:
+        score += 10
+        signal = "🟡 BUY"
+    elif change < -2:
+        score += 25
+        signal = "🔴 STRONG SELL"
+    elif change < -0.5:
+        score += 10
+        signal = "🟠 SELL"
     else:
-        signal = "🟡 HOLD"
-        strength += 10
+        signal = "⚪ HOLD"
 
-    # Trend logic
-    if price > get_price(coin):
-        strength += 10
-    else:
-        strength -= 5
+    # VOLATILITY FILTER (important upgrade)
+    if volatility > start * 0.05:
+        score -= 10
 
-    return f"{signal} | RSI: {int(rsi)} | Strength: {strength}/100", strength
+    return (
+        f"{signal}\n"
+        f"📊 Change: {change:.2f}%\n"
+        f"📉 Volatility: {volatility:.2f}\n"
+        f"🔥 Strength: {score}/100",
+        score
+    )
 
 
-# ================= VIP SENDER =================
+# ================= VIP SYSTEM =================
 
-def send_vip_signal(coin, signal, strength):
-    if strength >= 70:
+def send_vip_signal(coin, signal, score):
+    if score >= 75:
         bot.send_message(
             VIP_CHANNEL,
-            f"🔥 VIP SIGNAL\n\n"
-            f"{coin.upper()}\n"
+            f"🔥 VIP LEVEL 3 SIGNAL\n\n"
+            f"{coin.upper()}\n\n"
             f"{signal}\n\n"
-            f"📊 Auto-generated AI signal"
+            f"🤖 AI Confidence: {score}/100"
         )
 
 
@@ -141,7 +149,7 @@ def send_vip_signal(coin, signal, strength):
 def start(message):
     bot.send_message(
         message.chat.id,
-        "🤖 LEVEL 2 AI TRADING BOT\n\n"
+        "🚀 LEVEL 3 AI TRADING BOT\n\n"
         "/price BTC\n"
         "/signal BTC\n"
         "/scan"
@@ -157,7 +165,7 @@ def price(message):
         if p:
             bot.reply_to(message, f"💰 {coin.upper()} = ${p}")
         else:
-            bot.reply_to(message, "❌ Not found")
+            bot.reply_to(message, "❌ Coin not supported")
 
     except:
         bot.reply_to(message, "Usage: /price BTC")
@@ -168,32 +176,29 @@ def signal(message):
     try:
         coin = message.text.split()[1]
 
-        sig, strength = ai_signal(coin)
+        sig, score = ai_signal(coin)
 
         bot.reply_to(
             message,
-            f"🤖 {coin.upper()} SIGNAL\n\n{sig}"
+            f"🤖 {coin.upper()} AI SIGNAL\n\n{sig}"
         )
 
-        # Send VIP if strong
-        send_vip_signal(coin, sig, strength)
+        send_vip_signal(coin, sig, score)
 
     except:
         bot.reply_to(message, "Usage: /signal BTC")
 
 
-# ================= MARKET SCAN =================
-
 @bot.message_handler(commands=['scan'])
 def scan(message):
-    msg = "📊 AI SCAN RESULTS\n\n"
+    msg = "📊 LEVEL 3 MARKET SCAN\n\n"
 
     for coin in COINS.keys():
-        sig, strength = ai_signal(coin)
-        msg += f"{coin.upper()}: {sig}\n"
+        sig, score = ai_signal(coin)
+        msg += f"{coin.upper()}: {score}/100\n"
 
-        send_vip_signal(coin, sig, strength)
-        time.sleep(0.5)
+        send_vip_signal(coin, sig, score)
+        time.sleep(0.4)
 
     bot.send_message(message.chat.id, msg)
 
