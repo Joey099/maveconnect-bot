@@ -16,14 +16,11 @@ FREE_CHANNEL = "@UltimateAvian"
 VIP_CHANNEL = "@UltimateAve"
 
 bot = telebot.TeleBot(TOKEN, threaded=True)
-
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Level 3 AI Trading Bot Running 🚀"
-
-# ================= SAFETY =================
+    return "LEVEL 4 AI TRADING BOT 🚀"
 
 bot.remove_webhook()
 time.sleep(1)
@@ -47,84 +44,121 @@ COINS = {
     "link": "chainlink"
 }
 
-# ================= PRICE ENGINE (FIXED) =================
+# ================= SMART CACHE =================
+
+price_cache = {}
 
 def get_price(coin):
     coin = coin.lower().strip()
 
-    if coin not in COINS:
+    coin_id = COINS.get(coin)
+    if not coin_id:
         return None
 
-    coin_id = COINS[coin]
+    # CACHE (5 sec)
+    now = time.time()
+    if coin in price_cache and now - price_cache[coin]["time"] < 5:
+        return price_cache[coin]["price"]
 
-    url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd"
+    url = "https://api.coingecko.com/api/v3/simple/price"
 
     try:
-        r = requests.get(url, timeout=10)
+        r = requests.get(url, params={
+            "ids": coin_id,
+            "vs_currencies": "usd"
+        }, timeout=10)
+
         data = r.json()
 
-        return data.get(coin_id, {}).get("usd", None)
+        price = data.get(coin_id, {}).get("usd")
+
+        if price:
+            price_cache[coin] = {"price": price, "time": now}
+
+        return price
 
     except:
         return None
 
 
-# ================= MARKET HISTORY SIMULATION =================
+# ================= RSI (REAL VERSION) =================
 
-def get_price_history(coin):
+def rsi(coin, period=7):
     prices = []
 
-    for _ in range(6):
+    for _ in range(period + 1):
         p = get_price(coin)
         if p:
             prices.append(p)
-        time.sleep(0.3)
+        time.sleep(0.5)
 
-    return prices
+    if len(prices) < period:
+        return 50
+
+    gains = 0
+    losses = 0
+
+    for i in range(1, len(prices)):
+        diff = prices[i] - prices[i - 1]
+        if diff > 0:
+            gains += diff
+        else:
+            losses += abs(diff)
+
+    if losses == 0:
+        return 100
+
+    rs = gains / losses
+    return 100 - (100 / (1 + rs))
 
 
-# ================= LEVEL 3 AI ENGINE =================
+# ================= MACD STYLE TREND =================
+
+def macd_trend(coin):
+    p1 = get_price(coin)
+    time.sleep(1)
+    p2 = get_price(coin)
+
+    if not p1 or not p2:
+        return 0
+
+    return ((p2 - p1) / p1) * 100
+
+
+# ================= LEVEL 4 AI ENGINE =================
 
 def ai_signal(coin):
-    prices = get_price_history(coin)
-
-    if len(prices) < 4:
+    price = get_price(coin)
+    if not price:
         return "❌ No data", 0
 
-    # trend calculation
-    start = prices[0]
-    end = prices[-1]
-
-    change = ((end - start) / start) * 100
-
-    volatility = max(prices) - min(prices)
+    r = rsi(coin)
+    m = macd_trend(coin)
 
     score = 50
 
-    # TREND LOGIC
-    if change > 2:
-        score += 25
-        signal = "🟢 STRONG BUY"
-    elif change > 0.5:
-        score += 10
-        signal = "🟡 BUY"
-    elif change < -2:
-        score += 25
-        signal = "🔴 STRONG SELL"
-    elif change < -0.5:
-        score += 10
-        signal = "🟠 SELL"
-    else:
-        signal = "⚪ HOLD"
+    signal = "⚪ HOLD"
 
-    # VOLATILITY FILTER (important upgrade)
-    if volatility > start * 0.05:
-        score -= 10
+    # RSI logic
+    if r < 30:
+        signal = "🟢 STRONG BUY"
+        score += 30
+    elif r > 70:
+        signal = "🔴 STRONG SELL"
+        score += 30
+    else:
+        score += 10
+
+    # MACD trend confirmation
+    if m > 1:
+        score += 15
+    elif m < -1:
+        score -= 15
 
     return (
         f"{signal}\n"
-        f"📊 Change: {change:.2f}%\n"
-        f"📉 Volatility: {volatility:.2f}\n"
+        f"📊 RSI: {int(r)}\n"
+        f"📉 Trend: {m:.2f}%\n"
         f"🔥 Strength: {score}/100",
         score
     )
@@ -132,90 +166,66 @@ def ai_signal(coin):
 
 # ================= VIP SYSTEM =================
 
-def send_vip_signal(coin, signal, score):
-    if score >= 75:
+def send_vip(coin, sig, score):
+    if score >= 80:
         bot.send_message(
             VIP_CHANNEL,
-            f"🔥 VIP LEVEL 3 SIGNAL\n\n"
+            f"🔥 LEVEL 4 VIP SIGNAL\n\n"
             f"{coin.upper()}\n\n"
-            f"{signal}\n\n"
+            f"{sig}\n\n"
             f"🤖 AI Confidence: {score}/100"
         )
 
 
 # ================= COMMANDS =================
 
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.send_message(
-        message.chat.id,
-        "🚀 LEVEL 3 AI TRADING BOT\n\n"
-        "/price BTC\n"
-        "/signal BTC\n"
-        "/scan"
-    )
-
-
 @bot.message_handler(commands=['price'])
-def price(message):
-    try:
-        coin = message.text.split()[1]
-        p = get_price(coin)
+def price_cmd(msg):
+    coin = msg.text.split()[1]
+    p = get_price(coin)
 
-        if p:
-            bot.reply_to(message, f"💰 {coin.upper()} = ${p}")
-        else:
-            bot.reply_to(message, "❌ Coin not supported")
-
-    except:
-        bot.reply_to(message, "Usage: /price BTC")
+    if p:
+        bot.reply_to(msg, f"💰 {coin.upper()} = ${p}")
+    else:
+        bot.reply_to(msg, "❌ Coin not found")
 
 
 @bot.message_handler(commands=['signal'])
-def signal(message):
-    try:
-        coin = message.text.split()[1]
+def signal_cmd(msg):
+    coin = msg.text.split()[1]
 
-        sig, score = ai_signal(coin)
+    sig, score = ai_signal(coin)
 
-        bot.reply_to(
-            message,
-            f"🤖 {coin.upper()} AI SIGNAL\n\n{sig}"
-        )
+    bot.reply_to(msg, f"🤖 {coin.upper()} SIGNAL\n\n{sig}")
 
-        send_vip_signal(coin, sig, score)
-
-    except:
-        bot.reply_to(message, "Usage: /signal BTC")
+    send_vip(coin, sig, score)
 
 
 @bot.message_handler(commands=['scan'])
-def scan(message):
-    msg = "📊 LEVEL 3 MARKET SCAN\n\n"
+def scan(msg):
+    out = "📊 LEVEL 4 SCAN\n\n"
 
-    for coin in COINS.keys():
-        sig, score = ai_signal(coin)
-        msg += f"{coin.upper()}: {score}/100\n"
+    for c in COINS.keys():
+        sig, score = ai_signal(c)
+        out += f"{c.upper()}: {score}/100\n"
 
-        send_vip_signal(coin, sig, score)
-        time.sleep(0.4)
+        send_vip(c, sig, score)
+        time.sleep(0.8)
 
-    bot.send_message(message.chat.id, msg)
+    bot.send_message(msg.chat.id, out)
 
 
-# ================= BOT LOOP =================
+# ================= LOOP =================
 
-def run_bot():
+def run():
     while True:
         try:
             bot.infinity_polling(skip_pending=True)
         except Exception as e:
-            print("Restarting:", e)
+            print("Restart:", e)
             time.sleep(5)
 
 
-# ================= MAIN =================
-
 if __name__ == "__main__":
-    Thread(target=run_bot).start()
+    Thread(target=run).start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
