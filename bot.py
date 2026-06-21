@@ -16,6 +16,7 @@ FREE_CHANNEL = "@UltimateAvian"
 VIP_CHANNEL = "@UltimateAve"
 
 bot = telebot.TeleBot(TOKEN, threaded=True)
+print("Telegram bot initialized")
 app = Flask(__name__)
 
 @app.route("/")
@@ -219,13 +220,43 @@ def scan(msg):
 
 def run():
     while True:
+        # ================= LOOP =================
+
+def run():
+    while True:
         try:
-            bot.infinity_polling(skip_pending=True)
+            print("Bot started polling...")
+
+            bot.infinity_polling(
+                skip_pending=True,
+                timeout=30,
+                long_polling_timeout=30
+            )
+
         except Exception as e:
-            print("Restart:", e)
+            print(f"Polling error: {e}")
             time.sleep(5)
 
+# ================= MAIN =================
 
 if __name__ == "__main__":
-    Thread(target=run).start()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+    print("Starting application...")
+
+    try:
+        bot.remove_webhook()
+        print("Webhook removed")
+    except Exception as e:
+        print(f"Webhook error: {e}")
+
+    time.sleep(2)
+
+    polling_thread = Thread(target=run, daemon=True)
+    polling_thread.start()
+
+    print("Polling thread started")
+
+    app.run(
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000))
+        )
+            
