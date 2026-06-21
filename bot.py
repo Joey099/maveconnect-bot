@@ -15,7 +15,7 @@ if not TOKEN:
 CHANNEL = "@UltimateAvian"
 CHANNEL_LINK = "https://t.me/UltimateAvian"
 
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(TOKEN, threaded=True)
 
 # ================= FLASK APP =================
 
@@ -25,16 +25,17 @@ app = Flask(__name__)
 def home():
     return "Maveconnect Bot is running"
 
+# ================= SAFETY FIX (IMPORTANT) =================
+
+# 🔥 THIS FIXES YOUR 409 WEBHOOK ERROR
+bot.remove_webhook()
+time.sleep(1)
+
 # ================= PRICE FUNCTION =================
 
 def get_price(symbol: str):
-    """
-    Fetch crypto price from CoinGecko
-    """
-
     symbol = symbol.lower().strip()
 
-    # simple mapping (you can expand this)
     mapping = {
         "btc": "bitcoin",
         "bitcoin": "bitcoin",
@@ -51,8 +52,8 @@ def get_price(symbol: str):
     url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd"
 
     try:
-        response = requests.get(url, timeout=10)
-        data = response.json()
+        r = requests.get(url, timeout=10)
+        data = r.json()
 
         if coin_id in data:
             price = data[coin_id]["usd"]
@@ -64,7 +65,7 @@ def get_price(symbol: str):
         return f"⚠️ Error fetching price: {str(e)}"
 
 
-# ================= PRICE HANDLER =================
+# ================= HANDLERS =================
 
 @bot.message_handler(commands=['price'])
 def price_handler(message):
@@ -75,64 +76,62 @@ def price_handler(message):
             bot.reply_to(message, "Usage: /price BTC")
             return
 
-        symbol = parts[1]
-        result = get_price(symbol)
-
+        result = get_price(parts[1])
         bot.reply_to(message, result)
 
-    except Exception as e:
-        bot.reply_to(message, "⚠️ Something went wrong.")
+    except:
+        bot.reply_to(message, "⚠️ Error occurred")
         print(traceback.format_exc())
 
-
-# ================= CHANNEL CHECK (OPTIONAL) =================
-
-def is_member(user_id):
-    try:
-        member = bot.get_chat_member(CHANNEL, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
-        return False
-
-
-# ================= START COMMAND =================
 
 @bot.message_handler(commands=['start'])
 def start(message):
     user_id = message.from_user.id
 
-    if not is_member(user_id):
-        bot.send_message(
-            message.chat.id,
-            f"🚀 To use this bot, you must join our channel first:\n{CHANNEL_LINK}"
-        )
-        return
+    try:
+        member = bot.get_chat_member(CHANNEL, user_id)
+        if member.status not in ["member", "administrator", "creator"]:
+            bot.send_message(
+                message.chat.id,
+                f"🚀 Join our channel first:\n{CHANNEL_LINK}"
+            )
+            return
+    except:
+        pass
 
     bot.send_message(
         message.chat.id,
         "👋 Welcome to Maveconnect Bot!\n\n"
-        "Use:\n"
-        "/price BTC - to check crypto prices"
+        "Commands:\n"
+        "/price BTC"
     )
 
 
-# ================= POLLING =================
+# ================= BOT RUNNER (FIXED) =================
 
 def run_bot():
     while True:
         try:
-            bot.polling(none_stop=True, timeout=60)
+            print("Bot polling started...")
+            bot.infinity_polling(
+                skip_pending=True,
+                timeout=60,
+                long_polling_timeout=60
+            )
         except Exception as e:
-            print("Bot crashed, restarting...", e)
+            print("Bot crashed, restarting:", e)
             time.sleep(5)
 
 
 # ================= MAIN =================
 
 if __name__ == "__main__":
-    from threading import Thread
+    import threading
 
-    Thread(target=run_bot).start()
+    # Run bot in background thread
+    t = threading.Thread(target=run_bot)
+    t.daemon = True
+    t.start()
 
-    # Flask server (Render / hosting)
-    app.run(host="0.0.0.0", port=5000)
+    # Run Flask (Render needs this)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
