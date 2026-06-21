@@ -3,7 +3,6 @@ import telebot
 import requests
 import time
 import traceback
-import threading
 from flask import Flask
 
 # ================= CONFIG =================
@@ -18,203 +17,122 @@ CHANNEL_LINK = "https://t.me/UltimateAvian"
 
 bot = telebot.TeleBot(TOKEN)
 
-# ================= WEB SERVER =================
+# ================= FLASK APP =================
 
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Maveconnect Bot is running!"
+    return "Maveconnect Bot is running"
 
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+# ================= PRICE FUNCTION =================
 
-# ================= COIN MAP =================
+def get_price(symbol: str):
+    """
+    Fetch crypto price from CoinGecko
+    """
 
-coin_map = {
-    "btc": "bitcoin",
-    "bitcoin": "bitcoin",
-    "eth": "ethereum",
-    "ethereum": "ethereum",
-    "sol": "solana",
-    "solana": "solana",
-    "bnb": "binancecoin",
-    "binance": "binancecoin",
-    "xrp": "ripple",
-    "ripple": "ripple",
-    "ada": "cardano",
-    "cardano": "cardano",
-    "doge": "dogecoin",
-    "dogecoin": "dogecoin"
-}
+    symbol = symbol.lower().strip()
 
-# ================= MEMBERSHIP CHECK =================
+    # simple mapping (you can expand this)
+    mapping = {
+        "btc": "bitcoin",
+        "bitcoin": "bitcoin",
+        "eth": "ethereum",
+        "ethereum": "ethereum",
+        "bnb": "binancecoin",
+        "sol": "solana",
+        "xrp": "ripple",
+        "doge": "dogecoin"
+    }
+
+    coin_id = mapping.get(symbol, symbol)
+
+    url = f"https://api.coingecko.com/api/v3/simple/price?ids={coin_id}&vs_currencies=usd"
+
+    try:
+        response = requests.get(url, timeout=10)
+        data = response.json()
+
+        if coin_id in data:
+            price = data[coin_id]["usd"]
+            return f"💰 {coin_id.upper()} Price: ${price}"
+        else:
+            return "❌ Coin not found. Try BTC, ETH, SOL, etc."
+
+    except Exception as e:
+        return f"⚠️ Error fetching price: {str(e)}"
+
+
+# ================= PRICE HANDLER =================
+
+@bot.message_handler(commands=['price'])
+def price_handler(message):
+    try:
+        parts = message.text.split()
+
+        if len(parts) < 2:
+            bot.reply_to(message, "Usage: /price BTC")
+            return
+
+        symbol = parts[1]
+        result = get_price(symbol)
+
+        bot.reply_to(message, result)
+
+    except Exception as e:
+        bot.reply_to(message, "⚠️ Something went wrong.")
+        print(traceback.format_exc())
+
+
+# ================= CHANNEL CHECK (OPTIONAL) =================
 
 def is_member(user_id):
     try:
         member = bot.get_chat_member(CHANNEL, user_id)
-
-        return member.status in [
-            "member",
-            "administrator",
-            "creator"
-        ]
-
-    except Exception:
-        print(traceback.format_exc())
+        return member.status in ["member", "administrator", "creator"]
+    except:
         return False
 
-# ================= PRICE FETCHER =================
 
-def get_price(symbol):
-    try:
-        symbol = symbol.lower().strip()
+# ================= START COMMAND =================
 
-        coin = coin_map.get(symbol)
-
-        if not coin:
-            return None
-
-        url = "https://api.coingecko.com/api/v3/simple/price"
-
-        r = requests.get(
-            url,
-            params={
-                "ids": coin,
-                "vs_currencies": "usd"
-            },
-            timeout=10
-        )
-
-        if r.status_code != 200:
-            return None
-
-        data = r.json()
-
-        return data.get(coin, {}).get("usd")
-
-    except Exception:
-        print(traceback.format_exc())
-        return None
-
-# ================= START =================
-
-@bot.message_handler(commands=["start"])
+@bot.message_handler(commands=['start'])
 def start(message):
+    user_id = message.from_user.id
 
-    if not is_member(message.from_user.id):
-
-        bot.reply_to(
-            message,
-            f"🚀 To use this bot, join our channel first:\n\n{CHANNEL_LINK}\n\nThen send /start again."
+    if not is_member(user_id):
+        bot.send_message(
+            message.chat.id,
+            f"🚀 To use this bot, you must join our channel first:\n{CHANNEL_LINK}"
         )
-
         return
 
-    bot.reply_to(
-        message,
-        "🔥 Welcome to Maveconnect Bot\n\n"
-        "Supported Coins:\n"
-        "BTC\nETH\nSOL\nBNB\nXRP\nADA\nDOGE\n\n"
-        "Example:\n"
-        "/price btc"
+    bot.send_message(
+        message.chat.id,
+        "👋 Welcome to Maveconnect Bot!\n\n"
+        "Use:\n"
+        "/price BTC - to check crypto prices"
     )
 
-# ================= PRICE COMMAND =================
 
-@bot.message_handler(commands=["price"])
-def price_command(message):
-
-    if not is_member(message.from_user.id):
-        bot.reply_to(
-            message,
-            f"🚀 Join first:\n{CHANNEL_LINK}"
-        )
-        return
-
-    parts = message.text.split()
-
-    if len(parts) < 2:
-        bot.reply_to(
-            message,
-            "Usage:\n/price btc"
-        )
-        return
-
-    symbol = parts[1]
-
-    price = get_price(symbol)
-
-    if price is None:
-        bot.reply_to(
-            message,
-            "❌ Coin not supported."
-        )
-        return
-
-    bot.reply_to(
-        message,
-        f"💰 {symbol.upper()} Price\n\n${price:,}"
-    )
-
-# ================= TEXT COINS =================
-
-@bot.message_handler(func=lambda m: True)
-def coin_lookup(message):
-
-    if not is_member(message.from_user.id):
-        bot.reply_to(
-            message,
-            f"🚀 Join first:\n{CHANNEL_LINK}"
-        )
-        return
-
-    text = message.text.lower().strip()
-
-    price = get_price(text)
-
-    if price:
-
-        bot.reply_to(
-            message,
-            f"💰 {text.upper()} Price\n\n${price:,}"
-        )
-
-# ================= BOT RUNNER =================
+# ================= POLLING =================
 
 def run_bot():
-
     while True:
-
         try:
-
-            print("🤖 Starting bot...")
-
-            bot.remove_webhook()
-
-            time.sleep(2)
-
-            bot.infinity_polling(
-                timeout=30,
-                long_polling_timeout=30,
-                skip_pending=True
-            )
-
-        except Exception:
-
-            print("⚠️ Restarting bot...")
-            print(traceback.format_exc())
-
+            bot.polling(none_stop=True, timeout=60)
+        except Exception as e:
+            print("Bot crashed, restarting...", e)
             time.sleep(5)
+
 
 # ================= MAIN =================
 
 if __name__ == "__main__":
+    from threading import Thread
 
-    threading.Thread(
-        target=run_web,
-        daemon=True
-    ).start()
+    Thread(target=run_bot).start()
 
-    run_bot()
+    # Flask server (Render / hosting)
+    app.run(host="0.0.0.0", port=5000)
