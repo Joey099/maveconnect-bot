@@ -17,11 +17,20 @@ VIP_CHANNEL = "@UltimateAve"
 
 bot = telebot.TeleBot(TOKEN, threaded=True)
 print("Telegram bot initialized")
+
 app = Flask(__name__)
 
 @app.route("/")
 def home():
     return "LEVEL 4 AI TRADING BOT 🚀"
+
+# IMPORTANT FIX (prevents 409 webhook conflict)
+try:
+    bot.remove_webhook()
+    time.sleep(1)
+except:
+    pass
+
 
 # ================= COINS =================
 
@@ -42,7 +51,7 @@ COINS = {
     "link": "chainlink"
 }
 
-# ================= SMART CACHE =================
+# ================= CACHE =================
 
 price_cache = {}
 
@@ -53,21 +62,19 @@ def get_price(coin):
     if not coin_id:
         return None
 
-    # CACHE (5 sec)
     now = time.time()
+
     if coin in price_cache and now - price_cache[coin]["time"] < 5:
         return price_cache[coin]["price"]
 
-    url = "https://api.coingecko.com/api/v3/simple/price"
-
     try:
-        r = requests.get(url, params={
-            "ids": coin_id,
-            "vs_currencies": "usd"
-        }, timeout=10)
+        r = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={"ids": coin_id, "vs_currencies": "usd"},
+            timeout=10
+        )
 
         data = r.json()
-
         price = data.get(coin_id, {}).get("usd")
 
         if price:
@@ -79,22 +86,21 @@ def get_price(coin):
         return None
 
 
-# ================= RSI (REAL VERSION) =================
+# ================= INDICATORS =================
 
-def rsi(coin, period=7):
+def rsi(coin):
     prices = []
 
-    for _ in range(period + 1):
+    for _ in range(7):
         p = get_price(coin)
         if p:
             prices.append(p)
-        time.sleep(0.5)
+        time.sleep(0.3)
 
-    if len(prices) < period:
+    if len(prices) < 3:
         return 50
 
-    gains = 0
-    losses = 0
+    gains, losses = 0, 0
 
     for i in range(1, len(prices)):
         diff = prices[i] - prices[i - 1]
@@ -110,11 +116,9 @@ def rsi(coin, period=7):
     return 100 - (100 / (1 + rs))
 
 
-# ================= MACD STYLE TREND =================
-
 def macd_trend(coin):
     p1 = get_price(coin)
-    time.sleep(1)
+    time.sleep(0.8)
     p2 = get_price(coin)
 
     if not p1 or not p2:
@@ -123,10 +127,11 @@ def macd_trend(coin):
     return ((p2 - p1) / p1) * 100
 
 
-# ================= LEVEL 4 AI ENGINE =================
+# ================= AI ENGINE =================
 
 def ai_signal(coin):
     price = get_price(coin)
+
     if not price:
         return "❌ No data", 0
 
@@ -134,10 +139,8 @@ def ai_signal(coin):
     m = macd_trend(coin)
 
     score = 50
-
     signal = "⚪ HOLD"
 
-    # RSI logic
     if r < 30:
         signal = "🟢 STRONG BUY"
         score += 30
@@ -147,7 +150,6 @@ def ai_signal(coin):
     else:
         score += 10
 
-    # MACD trend confirmation
     if m > 1:
         score += 15
     elif m < -1:
@@ -162,90 +164,86 @@ def ai_signal(coin):
     )
 
 
-# ================= VIP SYSTEM =================
-
-def send_vip(coin, sig, score):
-    if score >= 80:
-        bot.send_message(
-            VIP_CHANNEL,
-            f"🔥 LEVEL 4 VIP SIGNAL\n\n"
-            f"{coin.upper()}\n\n"
-            f"{sig}\n\n"
-            f"🤖 AI Confidence: {score}/100"
-        )
-
-
 # ================= COMMANDS =================
 
 @bot.message_handler(commands=['price'])
 def price_cmd(msg):
-    try:
-        parts = msg.text.split()
+    parts = msg.text.split()
 
-        if len(parts) < 2:
-            bot.reply_to(msg, "Usage: /price BTC")
-            return
+    if len(parts) < 2:
+        bot.reply_to(msg, "Usage: /price BTC")
+        return
 
-        coin = parts[1].lower()
-        p = get_price(coin)
+    coin = parts[1].lower()
+    price = get_price(coin)
 
-        if p:
-            bot.reply_to(msg, f"💰 {coin.upper()} = ${p}")
-        else:
-            bot.reply_to(
-                msg,
-                f"❌ Coin not found.\nSupported: {', '.join(COINS.keys()).upper()}"
-            )
+    if price:
+        bot.reply_to(msg, f"💰 {coin.upper()} = ${price}")
+    else:
+        bot.reply_to(msg, f"❌ Coin not found: {', '.join(COINS.keys()).upper()}")
 
-    except Exception as e:
-        print(f"Price error: {e}")
-        bot.reply_to(msg, "⚠️ Error checking price")
 
 @bot.message_handler(commands=['signal'])
 def signal_cmd(msg):
     parts = msg.text.split()
 
-if len(parts) < 2:
-    bot.reply_to(msg, "Usage: /signal BTC")
-    return
+    if len(parts) < 2:
+        bot.reply_to(msg, "Usage: /signal BTC")
+        return
 
-coin = parts[1].lower()
+    coin = parts[1].lower()
 
     sig, score = ai_signal(coin)
 
     bot.reply_to(msg, f"🤖 {coin.upper()} SIGNAL\n\n{sig}")
 
-    send_vip(coin, sig, score)
+    if score >= 80:
+        bot.send_message(
+            VIP_CHANNEL,
+            f"🔥 VIP SIGNAL\n\n{coin.upper()}\n\n{sig}"
+        )
+
+
 @bot.message_handler(commands=['scan'])
 def scan(msg):
     out = "📊 LEVEL 4 SCAN\n\n"
 
     for c in COINS.keys():
         sig, score = ai_signal(c)
-
         out += f"{c.upper()}: {score}/100\n"
 
-        send_vip(c, sig, score)
-        time.sleep(0.8)
+        if score >= 80:
+            bot.send_message(VIP_CHANNEL, f"🔥 VIP {c.upper()}\n\n{sig}")
+
+        time.sleep(0.5)
 
     bot.send_message(msg.chat.id, out)
+
+
+# ================= RUN FUNCTION (THIS IS WHAT YOU WERE MISSING) =================
+
+def run():
+    while True:
+        try:
+            print("Bot started polling...")
+
+            bot.infinity_polling(
+                skip_pending=True,
+                timeout=30,
+                long_polling_timeout=30
+            )
+
+        except Exception as e:
+            print(f"Polling error: {e}")
+            time.sleep(5)
+
+
 # ================= MAIN =================
 
 if __name__ == "__main__":
     print("Starting application...")
 
-    try:
-        bot.remove_webhook()
-        print("Webhook removed")
-    except Exception as e:
-        print(f"Webhook error: {e}")
-
-    time.sleep(2)
-
-    polling_thread = Thread(target=run, daemon=True)
-    polling_thread.start()
-
-    print("Polling thread started")
+    Thread(target=run, daemon=True).start()
 
     app.run(
         host="0.0.0.0",
