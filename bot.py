@@ -23,9 +23,6 @@ app = Flask(__name__)
 def home():
     return "LEVEL 4 AI TRADING BOT 🚀"
 
-bot.remove_webhook()
-time.sleep(1)
-
 # ================= COINS =================
 
 COINS = {
@@ -243,6 +240,30 @@ if __name__ == "__main__":
     print("Starting application...")
 
     try:
+        # ================= LOOP =================
+
+def run():
+    while True:
+        try:
+            print("Bot started polling...")
+
+            bot.infinity_polling(
+                skip_pending=True,
+                timeout=30,
+                long_polling_timeout=30
+            )
+
+        except Exception as e:
+            print(f"Polling error: {e}")
+            time.sleep(5)
+
+
+# ================= MAIN =================
+
+if __name__ == "__main__":
+    print("Starting application...")
+
+    try:
         bot.remove_webhook()
         print("Webhook removed")
     except Exception as e:
@@ -259,4 +280,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=int(os.environ.get("PORT", 5000))
         )
-            
