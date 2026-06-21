@@ -179,18 +179,37 @@ def send_vip(coin, sig, score):
 
 @bot.message_handler(commands=['price'])
 def price_cmd(msg):
-    coin = msg.text.split()[1]
-    p = get_price(coin)
+    try:
+        parts = msg.text.split()
 
-    if p:
-        bot.reply_to(msg, f"💰 {coin.upper()} = ${p}")
-    else:
-        bot.reply_to(msg, "❌ Coin not found")
+        if len(parts) < 2:
+            bot.reply_to(msg, "Usage: /price BTC")
+            return
 
+        coin = parts[1].lower()
+        p = get_price(coin)
+
+        if p:
+            bot.reply_to(msg, f"💰 {coin.upper()} = ${p}")
+        else:
+            bot.reply_to(
+                msg,
+                f"❌ Coin not found.\nSupported: {', '.join(COINS.keys()).upper()}"
+            )
+
+    except Exception as e:
+        print(f"Price error: {e}")
+        bot.reply_to(msg, "⚠️ Error checking price")
 
 @bot.message_handler(commands=['signal'])
 def signal_cmd(msg):
-    coin = msg.text.split()[1]
+    parts = msg.text.split()
+
+if len(parts) < 2:
+    bot.reply_to(msg, "Usage: /signal BTC")
+    return
+
+coin = parts[1].lower()
 
     sig, score = ai_signal(coin)
 
