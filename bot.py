@@ -216,39 +216,19 @@ coin = parts[1].lower()
     bot.reply_to(msg, f"🤖 {coin.upper()} SIGNAL\n\n{sig}")
 
     send_vip(coin, sig, score)
-
-
 @bot.message_handler(commands=['scan'])
 def scan(msg):
     out = "📊 LEVEL 4 SCAN\n\n"
 
     for c in COINS.keys():
         sig, score = ai_signal(c)
+
         out += f"{c.upper()}: {score}/100\n"
 
         send_vip(c, sig, score)
         time.sleep(0.8)
 
     bot.send_message(msg.chat.id, out)
-
-# ================= LOOP =================
-
-def run():
-    while True:
-        try:
-            print("Bot started polling...")
-
-            bot.infinity_polling(
-                skip_pending=True,
-                timeout=30,
-                long_polling_timeout=30
-            )
-
-        except Exception as e:
-            print(f"Polling error: {e}")
-            time.sleep(5)
-
-
 # ================= MAIN =================
 
 if __name__ == "__main__":
