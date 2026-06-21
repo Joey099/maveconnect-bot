@@ -1,124 +1,220 @@
 import os
-import asyncio
+import telebot
 import requests
+import time
+import traceback
+import threading
+from flask import Flask
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    ContextTypes
-)
+# ================= CONFIG =================
 
-# =========================
-# CONFIG
-# =========================
-BOT_TOKEN = os.getenv("7988782705:AAFS9c5D_v-o15b5hBJZmNXW4aol4BgtUf4") or "7988782705:AAFS9c5D_v-o15b5hBJZmNXW4aol4BgtUf4"
+TOKEN = os.getenv("BOT_TOKEN")
+
+if not TOKEN:
+    raise Exception("BOT_TOKEN not found in Render Environment Variables")
+
 CHANNEL = "@UltimateAvian"
+CHANNEL_LINK = "https://t.me/UltimateAvian"
 
+bot = telebot.TeleBot(TOKEN)
 
-# =========================
-# COIN API
-# =========================
-def get_price(coin: str):
+# ================= WEB SERVER =================
+
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Maveconnect Bot is running!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+# ================= COIN MAP =================
+
+coin_map = {
+    "btc": "bitcoin",
+    "bitcoin": "bitcoin",
+    "eth": "ethereum",
+    "ethereum": "ethereum",
+    "sol": "solana",
+    "solana": "solana",
+    "bnb": "binancecoin",
+    "binance": "binancecoin",
+    "xrp": "ripple",
+    "ripple": "ripple",
+    "ada": "cardano",
+    "cardano": "cardano",
+    "doge": "dogecoin",
+    "dogecoin": "dogecoin"
+}
+
+# ================= MEMBERSHIP CHECK =================
+
+def is_member(user_id):
     try:
-        url = "https://api.coingecko.com/api/v3/simple/price"
-        r = requests.get(url, params={"ids": coin.lower(), "vs_currencies": "usd"}, timeout=10)
-        return r.json().get(coin.lower(), {}).get("usd")
-    except:
-        return None
+        member = bot.get_chat_member(CHANNEL, user_id)
 
+        return member.status in [
+            "member",
+            "administrator",
+            "creator"
+        ]
 
-# =========================
-# JOIN CHECK
-# =========================
-async def is_joined(context: ContextTypes.DEFAULT_TYPE, user_id: int):
-    try:
-        member = await context.bot.get_chat_member(CHANNEL, user_id)
-        return member.status in ["member", "administrator", "creator"]
-    except:
+    except Exception:
+        print(traceback.format_exc())
         return False
 
+# ================= PRICE FETCHER =================
 
-# =========================
-# START
-# =========================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+def get_price(symbol):
+    try:
+        symbol = symbol.lower().strip()
 
-    if not await is_joined(context, user_id):
-        await update.message.reply_text(
-            "🚀 Join channel first:",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Join", url="https://t.me/UltimateAvian")],
-                [InlineKeyboardButton("I Joined", callback_data="check")]
-            ])
+        coin = coin_map.get(symbol)
+
+        if not coin:
+            return None
+
+        url = "https://api.coingecko.com/api/v3/simple/price"
+
+        r = requests.get(
+            url,
+            params={
+                "ids": coin,
+                "vs_currencies": "usd"
+            },
+            timeout=10
+        )
+
+        if r.status_code != 200:
+            return None
+
+        data = r.json()
+
+        return data.get(coin, {}).get("usd")
+
+    except Exception:
+        print(traceback.format_exc())
+        return None
+
+# ================= START =================
+
+@bot.message_handler(commands=["start"])
+def start(message):
+
+    if not is_member(message.from_user.id):
+
+        bot.reply_to(
+            message,
+            f"🚀 To use this bot, join our channel first:\n\n{CHANNEL_LINK}\n\nThen send /start again."
+        )
+
+        return
+
+    bot.reply_to(
+        message,
+        "🔥 Welcome to Maveconnect Bot\n\n"
+        "Supported Coins:\n"
+        "BTC\nETH\nSOL\nBNB\nXRP\nADA\nDOGE\n\n"
+        "Example:\n"
+        "/price btc"
+    )
+
+# ================= PRICE COMMAND =================
+
+@bot.message_handler(commands=["price"])
+def price_command(message):
+
+    if not is_member(message.from_user.id):
+        bot.reply_to(
+            message,
+            f"🚀 Join first:\n{CHANNEL_LINK}"
         )
         return
 
-    await update.message.reply_text("🔥 Bot running on Python 3.14")
+    parts = message.text.split()
 
-
-# =========================
-# PRICE
-# =========================
-async def price(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("Usage: /price bitcoin")
+    if len(parts) < 2:
+        bot.reply_to(
+            message,
+            "Usage:\n/price btc"
+        )
         return
 
-    coin = context.args[0]
-    price = get_price(coin)
+    symbol = parts[1]
+
+    price = get_price(symbol)
+
+    if price is None:
+        bot.reply_to(
+            message,
+            "❌ Coin not supported."
+        )
+        return
+
+    bot.reply_to(
+        message,
+        f"💰 {symbol.upper()} Price\n\n${price:,}"
+    )
+
+# ================= TEXT COINS =================
+
+@bot.message_handler(func=lambda m: True)
+def coin_lookup(message):
+
+    if not is_member(message.from_user.id):
+        bot.reply_to(
+            message,
+            f"🚀 Join first:\n{CHANNEL_LINK}"
+        )
+        return
+
+    text = message.text.lower().strip()
+
+    price = get_price(text)
 
     if price:
-        await update.message.reply_text(f"💰 {coin.upper()} = ${price}")
-    else:
-        await update.message.reply_text("❌ Not found")
 
+        bot.reply_to(
+            message,
+            f"💰 {text.upper()} Price\n\n${price:,}"
+        )
 
-# =========================
-# BUTTON
-# =========================
-async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+# ================= BOT RUNNER =================
 
-    coin = query.data
-    price = get_price(coin)
+def run_bot():
 
-    if price:
-        await query.edit_message_text(f"💰 {coin.upper()} = ${price}")
-    else:
-        await query.edit_message_text("❌ Error")
+    while True:
 
+        try:
 
-# =========================
-# BUILD APP
-# =========================
-def build_app():
-    app = Application.builder().token(BOT_TOKEN).build()
+            print("🤖 Starting bot...")
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("price", price))
-    app.add_handler(CallbackQueryHandler(button))
+            bot.remove_webhook()
 
-    return app
+            time.sleep(2)
 
+            bot.infinity_polling(
+                timeout=30,
+                long_polling_timeout=30,
+                skip_pending=True
+            )
 
-# =========================
-# PYTHON 3.14 FIX LOOP RUNNER
-# =========================
-async def run():
-    app = build_app()
+        except Exception:
 
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
+            print("⚠️ Restarting bot...")
+            print(traceback.format_exc())
 
-    print("🚀 Bot running on Python 3.14 (fixed loop mode)")
+            time.sleep(5)
 
-    await asyncio.Event().wait()  # keep alive
-
+# ================= MAIN =================
 
 if __name__ == "__main__":
-    asyncio.run(run())
+
+    threading.Thread(
+        target=run_web,
+        daemon=True
+    ).start()
+
+    run_bot()
