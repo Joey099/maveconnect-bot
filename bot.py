@@ -51,6 +51,19 @@ def get_price(coin):
         time.sleep(0.5)
     return None
 
+    def safe_get_price(coin):
+    for _ in range(3):
+        try:
+            price = get_price(coin)
+            if price:
+                return price
+        except Exception as e:
+            print(e)
+
+        time.sleep(1)
+
+    return None
+
     try:
     price = get_price(coin)
 except:
