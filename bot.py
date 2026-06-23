@@ -120,7 +120,7 @@ if not p1 or not p2:
 
 return ((p2 - p1) / p1) * 100
 
-================= LEVEL 4 AI ENGINE =================
+#================= LEVEL 4 AI ENGINE =================
 
 def ai_signal(coin):
    price = get_price(coin)
