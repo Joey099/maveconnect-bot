@@ -5,25 +5,25 @@ import time
 from flask import Flask
 from threading import Thread
 
-================= CONFIG =================
+#================= CONFIG =================
 
 TOKEN = os.getenv("BOT_TOKEN")
 
 if not TOKEN:
-raise Exception("BOT_TOKEN not found")
+    raise Exception("BOT_TOKEN not found")
 
 FREE_CHANNEL = "@UltimateAvian"
 VIP_CHANNEL = "@UltimateAve"
 
 bot = telebot.TeleBot(TOKEN, threaded=True)
 print("Telegram bot initialized")
-app = Flask(name)
+app = Flask(__name__)
 
 @app.route("/")
 def home():
-return "LEVEL 4 AI TRADING BOT 🚀"
+    return "LEVEL 4 AI TRADING BOT 🚀"
 
-================= COINS =================
+#================= COINS =================
 
 COINS = {
 "btc": "bitcoin",
@@ -42,12 +42,12 @@ COINS = {
 "link": "chainlink"
 }
 
-================= SMART CACHE =================
+#================= SMART CACHE =================
 
 price_cache = {}
 
 def get_price(coin):
-coin = coin.lower().strip()
+    coin = coin.lower().strip()
 
 coin_id = COINS.get(coin)  
 if not coin_id:  
@@ -78,7 +78,7 @@ try:
 except:  
     return None
 
-================= RSI (REAL VERSION) =================
+#================= RSI (REAL VERSION) =================
 
 def rsi(coin, period=7):
 prices = []
@@ -108,12 +108,12 @@ if losses == 0:
 rs = gains / losses  
 return 100 - (100 / (1 + rs))
 
-================= MACD STYLE TREND =================
+#================= MACD STYLE TREND =================
 
 def macd_trend(coin):
-p1 = get_price(coin)
-time.sleep(1)
-p2 = get_price(coin)
+    p1 = get_price(coin)
+    time.sleep(1)
+    p2 = get_price(coin)
 
 if not p1 or not p2:  
     return 0  
@@ -123,9 +123,9 @@ return ((p2 - p1) / p1) * 100
 ================= LEVEL 4 AI ENGINE =================
 
 def ai_signal(coin):
-price = get_price(coin)
+    price = get_price(coin)
 if not price:
-return "❌ No data", 0
+    return "❌ No data", 0
 
 r = rsi(coin)  
 m = macd_trend(coin)  
@@ -158,7 +158,7 @@ return (
     score  
 )
 
-================= VIP SYSTEM =================
+#================= VIP SYSTEM =================
 
 def send_vip(coin, sig, score):
 if score >= 80:
@@ -170,7 +170,7 @@ f"{sig}\n\n"
 f"🤖 AI Confidence: {score}/100"
 )
 
-================= COMMANDS =================
+#================= COMMANDS =================
 
 @bot.message_handler(commands=['price'])
 def price_cmd(msg):
@@ -221,7 +221,7 @@ def signal_cmd(msg):
 
 @bot.message_handler(commands=['scan'])
 def scan(msg):
-out = "📊 LEVEL 4 SCAN\n\n"
+    out = "📊 LEVEL 4 SCAN\n\n"
 
 for c in COINS.keys():  
     sig, score = ai_signal(c)  
@@ -233,7 +233,7 @@ for c in COINS.keys():
 
 bot.send_message(msg.chat.id, out)
 
-================= MAIN =================
+#================= MAIN =================
 def run():
     while True:
         try:
@@ -248,8 +248,8 @@ def run():
         except Exception as e:
             print(f"Polling error: {e}")
             time.sleep(5)
-if name == "main":
-print("Starting application...")
+if __name__ == "__main__":
+    print("Starting application...")
 
 try:  
     bot.remove_webhook()  
@@ -257,10 +257,10 @@ try:
 except Exception as e:  
     print(f"Webhook error: {e}")  
 
-time.sleep(2)  
+     time.sleep(2)  
 
-polling_thread = Thread(target=run, daemon=True)  
-polling_thread.start()  
+    polling_thread = Thread(target=run, daemon=True)  
+    polling_thread.start()  
 
 print("Polling thread started")  
 
