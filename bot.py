@@ -1,38 +1,9 @@
-import os
-import telebot
 import requests
 import time
-from flask import Flask
-from threading import Thread
 
-TOKEN = os.getenv("BOT_TOKEN")
+price_cache = {}
+CACHE_TIME = 30  # seconds
 
-if not TOKEN:
-    raise Exception("BOT_TOKEN not found")
-
-bot = telebot.TeleBot(TOKEN, threaded=True)
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "LEVEL 4 AI TRADING BOT 🚀 RUNNING"
-@app.route(f"/webhook/{TOKEN}", methods=["POST"])
-def webhook():
-    json_str = request.get_data().decode("utf-8")
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return "OK", 200
-
-import telebot
-import os
-
-TOKEN = os.getenv("BOT_TOKEN")
-bot = telebot.TeleBot(TOKEN)
-
-bot.remove_webhook()
-print("Webhook removed successfully")
-
-# ================= COINS =================
 COINS = {
     "btc": "bitcoin",
     "eth": "ethereum",
@@ -51,20 +22,58 @@ COINS = {
 }
 
 def get_price(coin):
-    coin = coin.lower()
+    coin = coin.lower().strip()
+
     if coin not in COINS:
         return None
 
+    # ✅ CACHE CHECK
+    now = time.time()
+    if coin in price_cache:
+        cached_price, ts = price_cache[coin]
+        if now - ts < CACHE_TIME:
+            return cached_price
+
+    coin_id = COINS[coin]
+
+    # ================= TRY COINGECKO =================
     try:
         r = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
-            params={"ids": COINS[coin], "vs_currencies": "usd"},
+            params={"ids": coin_id, "vs_currencies": "usd"},
             timeout=10
         )
-        return r.json().get(COINS[coin], {}).get("usd")
-    except:
-        return None
 
+        if r.status_code == 200:
+            data = r.json()
+            price = data.get(coin_id, {}).get("usd")
+
+            if price:
+                price_cache[coin] = (float(price), now)
+                return float(price)
+
+    except:
+        pass
+
+    # ================= FALLBACK: BINANCE =================
+    try:
+        symbol = coin.upper() + "USDT"
+        r = requests.get(
+            f"https://api.binance.com/api/v3/ticker/price",
+            params={"symbol": symbol},
+            timeout=10
+        )
+
+        if r.status_code == 200:
+            price = float(r.json()["price"])
+            price_cache[coin] = (price, now)
+            return price
+
+    except:
+        pass
+
+    return None
+    
 # ================= COMMANDS =================
 
 @bot.message_handler(commands=["start"])
@@ -75,6 +84,8 @@ def start(msg):
         "💎 VIP: https://t.me/UltimateAve\n\n"
         "/price btc\n/signal btc"
     )
+
+coin = parts[1].lower().strip()
 
 @bot.message_handler(commands=["test"])
 def test(msg):
@@ -87,6 +98,8 @@ def price_cmd(msg):
         bot.reply_to(msg, "Usage: /price btc")
         return
 
+    coin = parts[1].lower().strip()
+    
     coin = parts[1]
     price = get_price(coin)
 
@@ -102,6 +115,8 @@ def signal_cmd(msg):
         bot.reply_to(msg, "Usage: /signal btc")
         return
 
+    coin = parts[1].lower().strip()
+    
     coin = parts[1]
     price = get_price(coin)
 
