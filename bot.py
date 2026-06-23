@@ -43,6 +43,19 @@ def get_price(coin):
 
     now = time.time()
 
+    def safe_get_price(coin):
+    for _ in range(2):
+        price = get_price(coin)
+        if price:
+            return price
+        time.sleep(0.5)
+    return None
+
+    try:
+    price = get_price(coin)
+except:
+    price = None
+
     # cache
     if coin in price_cache:
         price, ts = price_cache[coin]
@@ -102,6 +115,25 @@ def price_cmd(msg):
         bot.reply_to(msg, f"💰 {coin.upper()} = ${price}")
     else:
         bot.reply_to(msg, "❌ Coin not found")
+
+@bot.message_handler(commands=["price"])
+def price_cmd(msg):
+    try:
+        parts = msg.text.split()
+        if len(parts) < 2:
+            bot.reply_to(msg, "Usage: /price btc")
+            return
+
+        coin = parts[1].lower().strip()
+        price = safe_get_price(coin)
+
+        if price:
+            bot.reply_to(msg, f"💰 {coin.upper()} = ${price}")
+        else:
+            bot.reply_to(msg, "❌ Coin not found")
+
+    except Exception as e:
+        print("Price error:", e)
 
 @bot.message_handler(commands=["signal"])
 def signal_cmd(msg):
