@@ -16,6 +16,21 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return "LEVEL 4 AI TRADING BOT 🚀 RUNNING"
+@app.route(f"/webhook/{TOKEN}", methods=["POST"])
+def webhook():
+    json_str = request.get_data().decode("utf-8")
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return "OK", 200
+
+import telebot
+import os
+
+TOKEN = os.getenv("BOT_TOKEN")
+bot = telebot.TeleBot(TOKEN)
+
+bot.remove_webhook()
+print("Webhook removed successfully")
 
 # ================= COINS =================
 COINS = {
